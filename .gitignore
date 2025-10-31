@@ -3,8 +3,14 @@ env/
 data/
 **/__pycache__/
 *.pyc
+*.pyo
+*.pyd
 .DS_Store
 worker/.venv/
+worker/.venv*/
 *.log
-
-
+*.egg-info/
+dist/
+build/
+*.so
+__pycache__/
