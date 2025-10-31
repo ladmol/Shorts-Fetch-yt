@@ -25,6 +25,7 @@ def handle_message(ctx: MessageContext) -> None:
     task_id = str(payload.get("id") or payload.get("task_id") or "task")
     url = payload.get("url")
     attempts = int(payload.get("attempts", 0))
+    chat_id = payload.get("chat_id")
 
     if not url:
         logger.error("No URL provided in payload: %s", payload)
@@ -58,6 +59,8 @@ def handle_message(ctx: MessageContext) -> None:
             "key": key,
             "status": "success",
         }
+        if chat_id is not None:
+            result_payload["chat_id"] = chat_id
         publish(settings.results_queue, result_payload)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Task failed: %s", exc)
@@ -67,7 +70,10 @@ def handle_message(ctx: MessageContext) -> None:
             publish(settings.rabbitmq_queue, retry_payload)
             logger.info("Requeued task %s with attempts=%s", task_id, attempts + 1)
         else:
-            publish(settings.results_queue, {"id": task_id, "url": url, "status": "failed", "error": str(exc)})
+            failed_result = {"id": task_id, "url": url, "status": "failed", "error": str(exc)}
+            if chat_id is not None:
+                failed_result["chat_id"] = chat_id
+            publish(settings.results_queue, failed_result)
 
 
 def main() -> None:

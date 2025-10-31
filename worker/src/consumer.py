@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import time
 from dataclasses import dataclass
 
 import pika
@@ -21,7 +23,20 @@ class MessageContext:
 def create_connection() -> pika.BlockingConnection:
     credentials = pika.PlainCredentials(settings.rabbitmq_user, settings.rabbitmq_pass)
     params = pika.ConnectionParameters(host=settings.rabbitmq_host, port=settings.rabbitmq_port, credentials=credentials)
-    return pika.BlockingConnection(params)
+    max_wait_sec = int(os.getenv("RMQ_CONNECT_TIMEOUT_SECONDS", "60"))
+    deadline = time.time() + max_wait_sec
+    backoff = 0.5
+    while True:
+        try:
+            return pika.BlockingConnection(params)
+        except pika.exceptions.AMQPConnectionError as e:
+            if time.time() >= deadline:
+                logger.error("Failed to connect to RabbitMQ after %ds", max_wait_sec)
+                raise
+            logger.warning("Failed to connect to RabbitMQ, retrying in %.1fs: %s", backoff, e)
+            time.sleep(backoff)
+            if backoff < 5.0:
+                backoff *= 2
 
 
 def consume(callback) -> None:
